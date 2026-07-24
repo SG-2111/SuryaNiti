@@ -4,9 +4,9 @@ import json
 from datetime import datetime, timedelta
 
 # --- Page Configuration ---
-st.set_page_config(page_title="SuryaShakti", layout="centered")
+st.set_page_config(page_title="SuryaNiti", layout="centered")
 
-st.title("☀️ SuryaShakti")
+st.title("☀️ SuryaNiti")
 st.subheader("AI-Powered Solar Potential Estimator for India")
 st.markdown("Get personalized solar recommendations using real NASA data and Google Gemini AI.")
 
@@ -41,7 +41,7 @@ def get_coordinates(city_name):
     
     try:
         url = f"https://nominatim.openstreetmap.org/search?q={city_name},India&format=json&limit=1"
-        headers = {'User-Agent': 'SuryaShakti-Solar-Estimator'}
+        headers = {'User-Agent': 'SuryaNiti-Solar-Estimator'}
         response = requests.get(url, headers=headers, timeout=10)
         
         if response.status_code == 200:
