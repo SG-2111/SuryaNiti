@@ -3,7 +3,7 @@ import requests
 import os
 from datetime import datetime, timedelta
 
-# --- Page Configuration ---
+
 st.set_page_config(page_title="SuryaNiti", layout="centered")
 
 st.title("☀️ SuryaNiti")
@@ -18,7 +18,7 @@ if not api_key:
     st.info("Go to your app dashboard → Settings → Secrets")
     st.stop()
 
-# --- User Input ---
+
 st.markdown("### 📍 Enter Your Location")
 
 col1, col2 = st.columns(2)
@@ -29,7 +29,7 @@ with col2:
 
 st.caption("📍 Default location: Bengaluru. Change to your city.")
 
-# --- Analyze Button ---
+
 if st.button("🔍 Analyze with Gemini AI", type="primary"):
     
     with st.spinner("🌍 Fetching solar data from NASA satellites..."):
@@ -126,7 +126,7 @@ if st.button("🔍 Analyze with Gemini AI", type="primary"):
             except Exception as e:
                 st.error(f"❌ AI Error: {str(e)}")
 
-# --- Footer ---
+
 st.divider()
 st.caption("🚀 Built for India AI Impact Festival 2026 | Data: NASA POWER | AI: Google Gemini")
 st.caption("📡 Solar data sourced from NASA POWER satellite observations")
