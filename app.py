@@ -1,12 +1,12 @@
 import streamlit as st
 import requests
-import os
+import json
 from datetime import datetime, timedelta
 
 # --- Page Configuration ---
-st.set_page_config(page_title="SuryaNiti", layout="centered")
+st.set_page_config(page_title="SuryaShakti", layout="centered")
 
-st.title("☀️ SuryaNiti")
+st.title("☀️ SuryaShakti")
 st.subheader("AI-Powered Solar Potential Estimator for India")
 st.markdown("Get personalized solar recommendations using real NASA data and Google Gemini AI.")
 
@@ -18,7 +18,7 @@ if not api_key:
     st.info("Go to your app dashboard → Settings → Secrets")
     st.stop()
 
-# --- Location Input (Two Ways) ---
+# --- Location Input ---
 st.markdown("### 📍 Enter Your Location")
 
 # Option 1: Type a city name
@@ -29,19 +29,19 @@ st.caption("— OR — Enter coordinates manually")
 
 col1, col2 = st.columns(2)
 with col1:
-    lat = st.number_input("Latitude", value=12.9716, format="%.6f", help="e.g., 12.9716 for Bengaluru")
+    lat = st.number_input("Latitude", value=12.9716, format="%.6f")
 with col2:
-    lon = st.number_input("Longitude", value=77.5946, format="%.6f", help="e.g., 77.5946 for Bengaluru")
+    lon = st.number_input("Longitude", value=77.5946, format="%.6f")
 
-# --- Function to get coordinates from city name (using free Nominatim API) ---
+# --- Function to get coordinates from city name ---
 def get_coordinates(city_name):
-    """Get latitude and longitude from city name using OpenStreetMap Nominatim API"""
+    """Get latitude and longitude from city name"""
     if not city_name:
         return None, None
     
     try:
         url = f"https://nominatim.openstreetmap.org/search?q={city_name},India&format=json&limit=1"
-        headers = {'User-Agent': 'SuryaNiti Solar Estimator'}
+        headers = {'User-Agent': 'SuryaShakti-Solar-Estimator'}
         response = requests.get(url, headers=headers, timeout=10)
         
         if response.status_code == 200:
@@ -63,39 +63,70 @@ if city_name:
         lon = found_lon
         st.success(f"📍 Found: {city_name} (Lat: {lat:.4f}, Lon: {lon:.4f})")
 
+# --- Function to fetch NASA data (using the correct API) ---
+def fetch_nasa_data(lat, lon):
+    """Fetch solar radiation data from NASA POWER API"""
+    
+    # Using the correct NASA POWER API endpoint
+    # This endpoint returns monthly climatology data (always available)
+    url = f"https://power.larc.nasa.gov/api/power/v2/point?parameters=ALLSKY_SFC_SW_DWN&latitude={lat}&longitude={lon}&format=JSON&user=anonymous"
+    
+    try:
+        response = requests.get(url, timeout=30)
+        
+        if response.status_code != 200:
+            return None, f"NASA API returned status: {response.status_code}"
+        
+        data = response.json()
+        
+        # Extract the solar radiation values
+        # The data structure is: properties -> parameter -> ALLSKY_SFC_SW_DWN
+        radiation_data = data.get('properties', {}).get('parameter', {}).get('ALLSKY_SFC_SW_DWN', {})
+        
+        if not radiation_data:
+            return None, "No radiation data found for this location"
+        
+        # Get all values from the monthly data
+        daily_values = []
+        for month, value in radiation_data.items():
+            if isinstance(value, (int, float)):
+                daily_values.append(value)
+        
+        if not daily_values:
+            return None, "No valid data values found"
+        
+        # Calculate average daily radiation
+        avg_daily = sum(daily_values) / len(daily_values)
+        
+        return avg_daily, None
+        
+    except requests.exceptions.Timeout:
+        return None, "Request timed out. Please try again."
+    except requests.exceptions.ConnectionError:
+        return None, "Network error. Please check your internet connection."
+    except Exception as e:
+        return None, f"Error: {str(e)}"
+
 # --- Analyze Button ---
 if st.button("🔍 Analyze with Gemini AI", type="primary"):
     
     with st.spinner("🌍 Fetching solar data from NASA satellites..."):
         
-        # --- 1. Get NASA POWER Data (Using Climatology - More Stable) ---
-        try:
-            # Use climatology data (monthly averages over many years) - always available
-            url = f"https://power.larc.nasa.gov/api/power/v2/point?parameters=ALLSKY_SFC_SW_DWN&latitude={lat}&longitude={lon}&format=JSON&user=anonymous"
-            
-            response = requests.get(url, timeout=30)
-            
-            if response.status_code != 200:
-                st.error(f"❌ NASA API error: {response.status_code}")
-                st.stop()
-            
-            data = response.json()
-            
-            # Extract daily average radiation from climatology data
-            daily_values = []
-            for month_data in data['properties']['parameter']['ALLSKY_SFC_SW_DWN']:
-                daily_values.extend(month_data['values'])
-            
-            avg_daily = sum(daily_values) / len(daily_values)
-            
-        except Exception as e:
-            st.error(f"❌ Failed to fetch NASA data: {str(e)}")
-            st.info("💡 Please check your internet connection or try again later.")
+        # --- 1. Get NASA Data ---
+        avg_daily, error = fetch_nasa_data(lat, lon)
+        
+        if error:
+            st.error(f"❌ Failed to fetch NASA data: {error}")
+            st.info("💡 Try using a different location or check your internet connection.")
+            st.stop()
+        
+        if avg_daily is None:
+            st.error("❌ No data available for this location.")
             st.stop()
         
         # --- 2. Calculations ---
-        panel_efficiency = 0.20  # 20% efficient panels
-        roof_area_sqm = 46.45    # 500 sq ft
+        panel_efficiency = 0.20
+        roof_area_sqm = 46.45  # 500 sq ft
         
         annual_radiation = avg_daily * 365
         potential_kwh = annual_radiation * roof_area_sqm * panel_efficiency
@@ -130,7 +161,7 @@ if st.button("🔍 Analyze with Gemini AI", type="primary"):
             
             prompt = f"""
                 You are an expert solar energy consultant for India.
-                Based on this analysis for a household at coordinates ({lat}, {lon}):
+                Based on this analysis for a household at coordinates ({lat:.4f}, {lon:.4f}):
                 - Average Solar Radiation: {avg_daily:.2f} kWh/m²/day
                 - Recommended System Size: {system_kw:.1f} kW
                 - Annual Generation: {potential_kwh:,.0f} kWh
@@ -161,7 +192,7 @@ if st.button("🔍 Analyze with Gemini AI", type="primary"):
                     
                     st.divider()
                     st.markdown("### 💡 AI-Powered Recommendations")
-                    st.info(ai_response)
+                    st.success(ai_response)
                 else:
                     st.warning("⚠️ AI recommendations are temporarily unavailable.")
                     
@@ -171,4 +202,3 @@ if st.button("🔍 Analyze with Gemini AI", type="primary"):
 # --- Footer ---
 st.divider()
 st.caption("🚀 Built for India AI Impact Festival 2026 | Data: NASA POWER | AI: Google Gemini")
-st.caption("📡 Solar data sourced from NASA POWER satellite observations")
