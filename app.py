@@ -64,12 +64,11 @@ if city_name:
         st.success(f"📍 Found: {city_name} (Lat: {lat:.4f}, Lon: {lon:.4f})")
 
 # --- Function to fetch NASA data (using the correct API) ---
+
 def fetch_nasa_data(lat, lon):
     """Fetch solar radiation data from NASA POWER API"""
     
-    # Using the correct NASA POWER API endpoint
-    # This endpoint returns monthly climatology data (always available)
-    url = f"https://power.larc.nasa.gov/api/power/v2/point?parameters=ALLSKY_SFC_SW_DWN&latitude={lat}&longitude={lon}&format=JSON&user=anonymous"
+    url = f"https://power.larc.nasa.gov/api/temporal/climatology/point?parameters=ALLSKY_SFC_SW_DWN&community=RE&longitude={lon}&latitude={lat}&format=JSON"
     
     try:
         response = requests.get(url, timeout=30)
@@ -79,34 +78,26 @@ def fetch_nasa_data(lat, lon):
         
         data = response.json()
         
-        # Extract the solar radiation values
-        # The data structure is: properties -> parameter -> ALLSKY_SFC_SW_DWN
-        radiation_data = data.get('properties', {}).get('parameter', {}).get('ALLSKY_SFC_SW_DWN', {})
+        # Extract the radiation data
+        param_data = data.get('properties', {}).get('parameter', {}).get('ALLSKY_SFC_SW_DWN', {})
         
-        if not radiation_data:
+        if not param_data:
             return None, "No radiation data found for this location"
         
-        # Get all values from the monthly data
-        daily_values = []
-        for month, value in radiation_data.items():
-            if isinstance(value, (int, float)):
-                daily_values.append(value)
+        # Get all values (monthly averages)
+        values = [v for v in param_data.values() if isinstance(v, (int, float))]
         
-        if not daily_values:
+        if not values:
             return None, "No valid data values found"
         
-        # Calculate average daily radiation
-        avg_daily = sum(daily_values) / len(daily_values)
+        # Calculate average daily radiation across all months
+        avg_daily = sum(values) / len(values)
         
         return avg_daily, None
         
-    except requests.exceptions.Timeout:
-        return None, "Request timed out. Please try again."
-    except requests.exceptions.ConnectionError:
-        return None, "Network error. Please check your internet connection."
     except Exception as e:
-        return None, f"Error: {str(e)}"
-
+        return None, str(e)
+    
 # --- Analyze Button ---
 if st.button("🔍 Analyze with Gemini AI", type="primary"):
     
