@@ -4,9 +4,9 @@ import os
 from datetime import datetime, timedelta
 
 # --- Page Configuration ---
-st.set_page_config(page_title="SuryaShakti", layout="centered")
+st.set_page_config(page_title="SuryaNiti", layout="centered")
 
-st.title("☀️ SuryaShakti")
+st.title("☀️ SuryaNiti")
 st.subheader("AI-Powered Solar Potential Estimator for India")
 st.markdown("Get personalized solar recommendations using real NASA data and Google Gemini AI.")
 
