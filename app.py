@@ -93,28 +93,42 @@ def fetch_nasa_data(lat, lon):
         return None, str(e)
 
 # --- Function to get Gemini AI Recommendations ---
+
 def get_gemini_recommendations(solar_data, api_key, is_india):
     """Get personalized recommendations from Google Gemini"""
     
     location_type = "in India" if is_india else "outside India"
     
-    prompt = f"""
-        You are an expert solar energy consultant.
-        Based on this analysis for a household {location_type}:
-        - Average Solar Radiation: {solar_data['avg_daily']:.2f} kWh/m²/day
-        - Recommended System Size: {solar_data['system_kw']:.1f} kW
-        - Annual Generation: {solar_data['potential_kwh']:,.0f} kWh
-        - Monthly Savings: {solar_data['currency']}{solar_data['monthly_savings']:,.0f}
-        {'- PM Surya Ghar Subsidy: ' + solar_data['currency'] + f"{solar_data['subsidy']:,.0f}" if solar_data['subsidy'] else ''}
-        
-        Provide:
-        1. A brief overall assessment of this household's solar potential (1 sentence).
-        2. 3 specific, actionable recommendations for the homeowner.
-        {3. 'A quick tip about the PM Surya Ghar scheme.' if is_india else ''}
-        
-        Keep the tone friendly, encouraging, and practical. Write in simple English.
-        Format each point on a new line with clear numbering.
-    """
+    # Build the prompt lines conditionally
+    prompt_lines = [
+        "You are an expert solar energy consultant.",
+        f"Based on this analysis for a household {location_type}:",
+        f"- Average Solar Radiation: {solar_data['avg_daily']:.2f} kWh/m²/day",
+        f"- Recommended System Size: {solar_data['system_kw']:.1f} kW",
+        f"- Annual Generation: {solar_data['potential_kwh']:,.0f} kWh",
+        f"- Monthly Savings: {solar_data['currency']}{solar_data['monthly_savings']:,.0f}",
+    ]
+    
+    # Add subsidy line only if in India
+    if is_india and solar_data['subsidy'] is not None:
+        prompt_lines.append(f"- PM Surya Ghar Subsidy: {solar_data['currency']}{solar_data['subsidy']:,.0f}")
+    
+    prompt_lines.append("")
+    prompt_lines.append("Provide:")
+    prompt_lines.append("1. A brief overall assessment of this household's solar potential (1 sentence).")
+    prompt_lines.append("2. 3 specific, actionable recommendations for the homeowner.")
+    
+    # Add tip about PM Surya Ghar only if in India
+    if is_india:
+        prompt_lines.append("3. A quick tip about the PM Surya Ghar scheme.")
+    else:
+        prompt_lines.append("3. General next steps for adopting solar.")
+    
+    prompt_lines.append("")
+    prompt_lines.append("Keep the tone friendly, encouraging, and practical. Write in simple English.")
+    prompt_lines.append("Format each point on a new line with clear numbering.")
+    
+    prompt = "\n".join(prompt_lines)
     
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={api_key}"
     
