@@ -20,7 +20,7 @@ if not api_key:
 # --- Location Input ---
 st.markdown("### 📍 Enter Your Location")
 
-city_name = st.text_input("🏙️ City Name (e.g., Bengaluru, Mumbai, Delhi)", placeholder="Type your city name")
+city_name = st.text_input("🏙️ City Name (e.g., Bengaluru, Mumbai, Delhi, New York, Tokyo)", placeholder="Type your city name")
 
 st.caption("— OR — Enter coordinates manually")
 
@@ -35,7 +35,7 @@ def get_coordinates(city_name):
     if not city_name:
         return None, None
     try:
-        url = f"https://nominatim.openstreetmap.org/search?q={city_name},India&format=json&limit=1"
+        url = f"https://nominatim.openstreetmap.org/search?q={city_name}&format=json&limit=1"
         headers = {'User-Agent': 'SuryaNiti-Solar-Estimator'}
         response = requests.get(url, headers=headers, timeout=10)
         if response.status_code == 200:
@@ -53,6 +53,14 @@ if city_name:
         lat = found_lat
         lon = found_lon
         st.success(f"📍 Found: {city_name} (Lat: {lat:.4f}, Lon: {lon:.4f})")
+
+# --- Function to check if location is in India ---
+def is_in_india(lat, lon):
+    """Check if coordinates are within India's approximate bounding box"""
+    # India approximate bounds: 8°N to 37°N, 68°E to 97°E
+    if 8.0 <= lat <= 37.0 and 68.0 <= lon <= 97.0:
+        return True
+    return False
 
 # --- Function to fetch NASA data ---
 def fetch_nasa_data(lat, lon):
@@ -85,22 +93,24 @@ def fetch_nasa_data(lat, lon):
         return None, str(e)
 
 # --- Function to get Gemini AI Recommendations ---
-def get_gemini_recommendations(solar_data, api_key):
+def get_gemini_recommendations(solar_data, api_key, is_india):
     """Get personalized recommendations from Google Gemini"""
     
+    location_type = "in India" if is_india else "outside India"
+    
     prompt = f"""
-        You are an expert solar energy consultant for India.
-        Based on this analysis for a household:
+        You are an expert solar energy consultant.
+        Based on this analysis for a household {location_type}:
         - Average Solar Radiation: {solar_data['avg_daily']:.2f} kWh/m²/day
         - Recommended System Size: {solar_data['system_kw']:.1f} kW
         - Annual Generation: {solar_data['potential_kwh']:,.0f} kWh
-        - Monthly Savings: ₹{solar_data['monthly_savings']:,.0f}
-        - PM Surya Ghar Subsidy: ₹{solar_data['subsidy']:,.0f}
+        - Monthly Savings: {solar_data['currency']}{solar_data['monthly_savings']:,.0f}
+        {'- PM Surya Ghar Subsidy: ' + solar_data['currency'] + f"{solar_data['subsidy']:,.0f}" if solar_data['subsidy'] else ''}
         
         Provide:
         1. A brief overall assessment of this household's solar potential (1 sentence).
         2. 3 specific, actionable recommendations for the homeowner.
-        3. A quick tip about the PM Surya Ghar scheme.
+        {3. 'A quick tip about the PM Surya Ghar scheme.' if is_india else ''}
         
         Keep the tone friendly, encouraging, and practical. Write in simple English.
         Format each point on a new line with clear numbering.
@@ -156,31 +166,46 @@ if st.button("🔍 Analyze with Gemini AI", type="primary"):
             st.error("❌ No data available for this location.")
             st.stop()
         
-        # --- 2. Calculations ---
+        # --- 2. Check if location is in India ---
+        in_india = is_in_india(lat, lon)
+        
+        # --- 3. Calculations ---
         panel_efficiency = 0.20
         roof_area_sqm = 46.45
         
         annual_radiation = avg_daily * 365
         potential_kwh = annual_radiation * roof_area_sqm * panel_efficiency
         system_kw = potential_kwh / (365 * 5)
-        monthly_savings = (potential_kwh / 12) * 7.0
         
-        if system_kw <= 3:
-            subsidy = system_kw * 30000
-        elif system_kw <= 10:
-            subsidy = 90000 + (system_kw - 3) * 18000
+        # --- Set currency and rates based on location ---
+        if in_india:
+            currency = "₹"
+            electricity_rate = 7.0
+            # PM Surya Ghar Subsidy calculation (India only)
+            if system_kw <= 3:
+                subsidy = system_kw * 30000
+            elif system_kw <= 10:
+                subsidy = 90000 + (system_kw - 3) * 18000
+            else:
+                subsidy = system_kw * 18000
         else:
-            subsidy = system_kw * 18000
+            currency = "$"
+            electricity_rate = 0.12  # Approximate US rate
+            subsidy = None  # No subsidy for non-India locations
+        
+        monthly_savings = (potential_kwh / 12) * electricity_rate
         
         solar_data = {
             'avg_daily': avg_daily,
             'system_kw': system_kw,
             'potential_kwh': potential_kwh,
             'monthly_savings': monthly_savings,
-            'subsidy': subsidy
+            'subsidy': subsidy,
+            'currency': currency,
+            'in_india': in_india
         }
         
-        # --- 3. Display Results ---
+        # --- 4. Display Results ---
         st.success("✅ Solar Analysis Complete!")
         
         col1, col2, col3, col4 = st.columns(4)
@@ -191,14 +216,18 @@ if st.button("🔍 Analyze with Gemini AI", type="primary"):
         with col3:
             st.metric("🔋 Annual Generation", f"{potential_kwh:,.0f} kWh")
         with col4:
-            st.metric("💰 Monthly Savings", f"₹{monthly_savings:,.0f}")
+            st.metric("💰 Monthly Savings", f"{currency}{monthly_savings:,.0f}")
         
-        st.metric("🏛️ PM Surya Ghar Subsidy", f"₹{subsidy:,.0f}")
+        # Show subsidy ONLY if in India
+        if in_india and subsidy is not None:
+            st.metric("🏛️ PM Surya Ghar Subsidy", f"{currency}{subsidy:,.0f}")
+        else:
+            st.info("ℹ️ PM Surya Ghar subsidy is available only for locations in India.")
         
-        # --- 4. Get Gemini AI Recommendations ---
+        # --- 5. Get Gemini AI Recommendations ---
         with st.spinner("🧠 Asking Gemini AI for personalized recommendations..."):
             
-            ai_text, ai_error = get_gemini_recommendations(solar_data, api_key)
+            ai_text, ai_error = get_gemini_recommendations(solar_data, api_key, in_india)
             
             st.divider()
             st.markdown("### 💡 AI-Powered Recommendations")
@@ -216,14 +245,16 @@ if st.button("🔍 Analyze with Gemini AI", type="primary"):
                     st.write(f"✅ **Excellent potential!** Your {system_kw:.1f} kW system can cover most of your electricity needs.")
                     st.write("📌 **Next steps:**")
                     st.write("1. Contact 3 verified solar installers for quotes")
-                    st.write(f"2. Apply for PM Surya Ghar subsidy (₹{subsidy:,.0f})")
+                    if in_india:
+                        st.write(f"2. Apply for PM Surya Ghar subsidy ({currency}{subsidy:,.0f})")
                     st.write("3. Schedule a site assessment")
                 elif system_kw > 3:
                     st.write(f"👍 **Good potential!** A {system_kw:.1f} kW system will significantly reduce your electricity bills.")
                     st.write("📌 **Next steps:**")
                     st.write("1. Check for any shading on your rooftop")
                     st.write("2. Get quotes from multiple installers")
-                    st.write(f"3. Apply for PM Surya Ghar subsidy (₹{subsidy:,.0f})")
+                    if in_india:
+                        st.write(f"3. Apply for PM Surya Ghar subsidy ({currency}{subsidy:,.0f})")
                 else:
                     st.write(f"ℹ️ Your {system_kw:.1f} kW potential is moderate.")
                     st.write("📌 **Suggestions:**")
@@ -234,3 +265,4 @@ if st.button("🔍 Analyze with Gemini AI", type="primary"):
 # --- Footer ---
 st.divider()
 st.caption("🚀 Built for India AI Impact Festival 2026 | Data: NASA POWER | AI: Google Gemini")
+st.caption("📍 Works for any location globally. PM Surya Ghar subsidy displayed only for India.")
