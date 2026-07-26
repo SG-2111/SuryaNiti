@@ -26,9 +26,9 @@ st.caption("— OR — Enter coordinates manually")
 
 col1, col2 = st.columns(2)
 with col1:
-    lat = st.number_input("Latitude", value=12.9716, format="%.6f")
+    lat = st.number_input("Latitude", format="%.6f")
 with col2:
-    lon = st.number_input("Longitude", value=77.5946, format="%.6f")
+    lon = st.number_input("Longitude", format="%.6f")
 
 # --- Function to get coordinates from city name ---
 def get_coordinates(city_name):
