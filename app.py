@@ -106,7 +106,7 @@ def get_gemini_recommendations(solar_data, api_key):
         Format each point on a new line with clear numbering.
     """
     
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={api_key}"
     
     payload = {
         "contents": [
